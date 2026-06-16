@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GPS Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: sans-serif; background: #f0f0f0; }
+    #header {
+      background: #1a1a2e; color: white;
+      padding: 12px 20px;
+      display: flex; align-items: center;
+      justify-content: space-between;
+    }
+    #header h1 { font-size: 1.1em; font-weight: 500; }
+    #status {
+      font-size: 0.8em; padding: 4px 10px;
+      border-radius: 20px; background: #333;
+    }
+    #status.fix    { background: #1D9E75; }
+    #status.nofix  { background: #D85A30; }
+    #map { height: calc(100vh - 110px); }
+    #info {
+      display: flex; gap: 0;
+      background: #1a1a2e; color: white;
+      height: 50px;
+    }
+    .info-item {
+      flex: 1; display: flex;
+      flex-direction: column;
+      align-items: center; justify-content: center;
+      border-right: 1px solid #333;
+      font-size: 0.75em;
+    }
+    .info-item span { font-size: 1.1em; font-weight: 500; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div id="header">
+    <h1>📡 GPS Tracker</h1>
+    <div id="status" class="nofix">🔴 Sans fix</div>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="info">
+    <div class="info-item">Latitude<span id="i-lat">---</span></div>
+    <div class="info-item">Longitude<span id="i-lng">---</span></div>
+    <div class="info-item">Altitude<span id="i-alt">--- m</span></div>
+    <div class="info-item">Vitesse<span id="i-spd">--- km/h</span></div>
+    <div class="info-item">Satellites<span id="i-sat">---</span></div>
+  </div>
+
+  <script>
+    const map = L.map('map').setView([34.0, -6.8], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    const marker = L.marker([34.0, -6.8]).addTo(map);
+    const circle = L.circle([34.0, -6.8], { radius: 10, color: '#378ADD' }).addTo(map);
+    let firstFix = true;
+
+    async function fetchPosition() {
+      try {
+        const res = await fetch('/position');
+        const d = await res.json();
+
+        document.getElementById('i-lat').textContent = d.lat?.toFixed(6) ?? '---';
+        document.getElementById('i-lng').textContent = d.lng?.toFixed(6) ?? '---';
+        document.getElementById('i-alt').textContent = (d.alt?.toFixed(1) ?? '---') + ' m';
+        document.getElementById('i-spd').textContent = (d.speed?.toFixed(1) ?? '---') + ' km/h';
+        document.getElementById('i-sat').textContent = d.satellites ?? '---';
+
+        const status = document.getElementById('status');
+        if (d.fix && d.lat !== 0) {
+          status.className = 'fix';
+          status.textContent = '🟢 Fix GPS';
+          marker.setLatLng([d.lat, d.lng]);
+          circle.setLatLng([d.lat, d.lng]);
+          marker.bindPopup(`<b>${d.lat.toFixed(5)}, ${d.lng.toFixed(5)}</b><br>${d.timestamp}`).openPopup();
+          if (firstFix) {
+            map.setView([d.lat, d.lng], 16);
+            firstFix = false;
+          }
+        } else {
+          status.className = 'nofix';
+          status.textContent = '🔴 Sans fix';
+        }
+      } catch(e) {
+        console.error(e);
+      }
+    }
+
+    // Mise à jour toutes les 3 secondes
+    fetchPosition();
+    setInterval(fetchPosition, 3000);
+  </script>
+</body>
+</html>
